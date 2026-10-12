@@ -450,6 +450,37 @@ Singleton {
     }
 
     Component {
+        id: vpnCompactComp
+        CompactToggleTile {
+            active: NetworkService.vpnConnected
+            iconComponent: MaterialIcon {
+                name: "shield-lock"
+                iconSize: 22
+                filled: NetworkService.vpnConnected
+            }
+            onToggled: NetworkService.toggleVpn()
+            onRightClicked: root.openSettings("network")
+        }
+    }
+
+    Component {
+        id: vpnWideComp
+        SimpleIconLabelTile {
+            active: NetworkService.vpnConnected
+            label: Localization.t("qsTileService.vpn")
+            sublabel: NetworkService.vpnConnected ? NetworkService.vpnName
+                : (NetworkService.vpnProfiles.length === 0 ? Localization.t("qsTileService.vpn_none") : NetworkService.vpnProfiles[0].name)
+            iconComponent: MaterialIcon {
+                name: "shield-lock"
+                iconSize: 22
+                filled: NetworkService.vpnConnected
+            }
+            onToggled: NetworkService.toggleVpn()
+            onRightClicked: root.openSettings("network")
+        }
+    }
+
+    Component {
         id: micCompactComp
         CompactToggleTile {
             active: !AudioService.sourceMuted
@@ -659,6 +690,7 @@ Singleton {
         { id: "gameMode",     label: Localization.t("qsTileService.game_mode"),     compactComponent: gameModeCompactComp,      wideComponent: gameModeWideComp },
         { id: "localsend",    label: Localization.t("qsTileService.localsend"),     compactComponent: localsendCompactComp,     wideComponent: localsendWideComp },
         { id: "dns",          label: Localization.t("qsTileService.dns"),          compactComponent: dnsCompactComp,           wideComponent: dnsWideComp },
+        { id: "vpn",          label: Localization.t("qsTileService.vpn"),          compactComponent: vpnCompactComp,           wideComponent: vpnWideComp },
         { id: "screenshot",   label: Localization.t("qsTileService.screenshot"),    compactComponent: screenshotCompactComp,    wideComponent: screenshotWideComp },
         { id: "record",       label: Localization.t("qsTileService.record"),        compactComponent: recordCompactComp,        wideComponent: recordWideComp },
         { id: "colorPicker",  label: Localization.t("qsTileService.color_picker"),  compactComponent: colorPickerCompactComp,   wideComponent: colorPickerWideComp },
@@ -670,7 +702,7 @@ Singleton {
 
     readonly property var allIds: definitions.map(d => d.id)
 
-    readonly property var defaultDisabledIds: ["localsend", "screenshot", "record", "colorPicker", "cts", "ocr", "darkTheme", "mediaMini", "dns"]
+    readonly property var defaultDisabledIds: ["localsend", "screenshot", "record", "colorPicker", "cts", "ocr", "darkTheme", "mediaMini", "dns", "vpn"]
 
     function _indexBy(key) {
         const m = {};

@@ -6,6 +6,7 @@ import Quickshell
 import Quickshell.Io
 import qs.style
 import "ShellQuote.js" as ShellQuote
+import "vpnInfo.js" as VpnInfo
 
 Singleton {
     id: root
@@ -16,6 +17,13 @@ Singleton {
     property bool wifiConnected: false
     property bool ethConnected: false
     property bool vpnConnected: false
+    property string vpnName: ""
+    property var vpnProfiles: []
+    property var vpnActive: []
+    property var vpnEndpoints: ({})
+    property string _vpnUuidKey: ""
+    property var vpnStats: ({})
+    property bool vpnStatsWanted: false
     property string wifiSsid: ""
     property int wifiSignal: 0
     property bool scanning: false
@@ -181,13 +189,134 @@ Singleton {
         }
     }
 
+    // vpnProfiles: [{ name, uuid, active, last }] most recently used first, so index 0 is what the tile reconnects.
     Process {
         id: vpnProc
         running: true
-        command: ["sh", "-c", "nmcli -t -f TYPE connection show --active | grep -qE '^(vpn|wireguard)$' && echo yes || echo no"]
+        command: ["nmcli", "-t", "-f", "TYPE,NAME,UUID,ACTIVE,TIMESTAMP,DEVICE", "connection", "show"]
         stdout: StdioCollector {
-            onStreamFinished: root.vpnConnected = text.trim() === "yes"
+            onStreamFinished: {
+                const profiles = [];
+                for (const line of text.trim().split("\n")) {
+                    const parts = line.replace(/\\:/g, "\u0000").split(":").map(x => x.replace(/\u0000/g, ":"));
+                    if (parts.length < 5 || (parts[0] !== "vpn" && parts[0] !== "wireguard"))
+                        continue;
+                    profiles.push({ name: parts[1], uuid: parts[2], active: parts[3] === "yes", last: Number(parts[4]) || 0, device: parts[5] ?? "" });
+                }
+                profiles.sort((a, b) => b.last - a.last);
+                root.vpnProfiles = profiles;
+                root.vpnActive = profiles.filter(p => p.active);
+                root.vpnName = root.vpnActive[0]?.name ?? "";
+                root.vpnConnected = root.vpnActive.length > 0;
+                const key = profiles.map(p => p.uuid).sort().join(",");
+                if (key !== root._vpnUuidKey) {
+                    root._vpnUuidKey = key;
+                    vpnEndpointProc.command = ["sh", "-c", 'for u; do echo "$u $(nmcli -t -g wireguard.peers connection show uuid "$u" 2>/dev/null)"; done', "_", ...profiles.map(p => p.uuid)];
+                    vpnEndpointProc.running = false;
+                    vpnEndpointProc.running = true;
+                }
+            }
         }
+    }
+
+    // uuid -> server host (port dropped); only WireGuard profiles carry one.
+    Process {
+        id: vpnEndpointProc
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const map = {};
+                for (const line of text.split("\n")) {
+                    const m = line.match(/^(\S+) .*endpoint=(\S+)/);
+                    if (m)
+                        map[m[1]] = m[2].replace(/\\?:\d+$/, "");
+                }
+                root.vpnEndpoints = map;
+            }
+        }
+    }
+
+    Process {
+        id: vpnToggleProc
+        onExited: {
+            vpnProc.running = false;
+            vpnProc.running = true;
+        }
+    }
+
+    function _vpnRun(args) {
+        vpnToggleProc.command = ["nmcli", ...args];
+        vpnToggleProc.running = false;
+        vpnToggleProc.running = true;
+    }
+    // One tunnel at a time: they all claim the default route, so bring the others down first.
+    function vpnConnect(uuid) {
+        vpnToggleProc.command = ["sh", "-c", 'target=$1; shift; for u; do nmcli connection down uuid "$u"; done; nmcli connection up uuid "$target"', "_", uuid, ...vpnActive.map(p => p.uuid).filter(u => u !== uuid)];
+        vpnToggleProc.running = false;
+        vpnToggleProc.running = true;
+    }
+    function vpnDisconnect(uuid) { _vpnRun(["connection", "down", "uuid", uuid]); }
+    function vpnRename(uuid, name) { if (name.trim() !== "") _vpnRun(["connection", "modify", "uuid", uuid, "connection.id", name.trim()]); }
+    function vpnDelete(uuid) { _vpnRun(["connection", "delete", "uuid", uuid]); }
+    function vpnImport(urls) {
+        const files = urls.map(u => String(u).replace(/^file:\/\//, "")).filter(f => f.endsWith(".conf"));
+        if (files.length === 0)
+            return;
+        vpnToggleProc.command = ["sh", "-c", 'for f; do nmcli connection import type wireguard file "$f"; done', "_", ...files];
+        vpnToggleProc.running = false;
+        vpnToggleProc.running = true;
+    }
+
+    Timer {
+        interval: 2000
+        repeat: true
+        running: root.vpnStatsWanted && root.vpnConnected
+        triggeredOnStart: true
+        onTriggered: {
+            vpnStatsProc.command = ["sh", "-c", 'for d; do [ -r /sys/class/net/$d/statistics/rx_bytes ] && echo "$d $(cat /sys/class/net/$d/statistics/rx_bytes) $(cat /sys/class/net/$d/statistics/tx_bytes)"; done', "_", ...root.vpnActive.map(p => p.device).filter(d => d !== "")];
+            vpnStatsProc.running = false;
+            vpnStatsProc.running = true;
+        }
+    }
+
+    Process {
+        id: vpnStatsProc
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const map = {};
+                for (const line of text.trim().split("\n")) {
+                    const [dev, rx, tx] = line.split(" ");
+                    if (dev && tx !== undefined)
+                        map[dev] = { rx: Number(rx), tx: Number(tx) };
+                }
+                root.vpnStats = map;
+            }
+        }
+    }
+
+    function vpnSubtitle(p) {
+        if (!p)
+            return "";
+        const parts = [];
+        const loc = VpnInfo.location(vpnEndpoints[p.uuid]);
+        if (loc)
+            parts.push(loc);
+        const st = p.active ? vpnStats[p.device] : null;
+        if (st)
+            parts.push("↓ " + VpnInfo.formatBytes(st.rx) + "  ↑ " + VpnInfo.formatBytes(st.tx));
+        return parts.join("  ·  ");
+    }
+
+    function vpnDisconnectAll() {
+        vpnToggleProc.command = ["sh", "-c", 'for u; do nmcli connection down uuid "$u"; done', "_", ...vpnActive.map(p => p.uuid)];
+        vpnToggleProc.running = false;
+        vpnToggleProc.running = true;
+    }
+
+    function toggleVpn() {
+        if (vpnConnected)
+            vpnDisconnectAll();
+        else if (vpnProfiles.length > 0)
+            vpnConnect(vpnProfiles[0].uuid);
     }
 
     Process {

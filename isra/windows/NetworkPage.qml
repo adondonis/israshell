@@ -6,6 +6,7 @@ import QtQuick.Shapes
 import Quickshell
 import Quickshell.Io
 import Quickshell.Bluetooth
+import Qt.labs.platform as Labs
 import qs.style
 import qs.services
 import qs.icons
@@ -19,8 +20,11 @@ PageBase {
     title: Localization.t("settingsWindow.connectivity")
     subtitle: Localization.t("networkPage.wi_fi_and_bluetooth")
 
-    onActiveChanged: if (active)
-        NetworkService.refresh()
+    onActiveChanged: {
+        if (active)
+            NetworkService.refresh();
+        NetworkService.vpnStatsWanted = active;
+    }
 
     readonly property bool wifiBusy: NetworkService.wifiConnecting || NetworkService.scanning
 
@@ -881,6 +885,263 @@ PageBase {
 
                 Rectangle {
                     visible: index < newBtRepeater.count - 1
+                    anchors {
+                        bottom: parent.bottom
+                        left: parent.left
+                        leftMargin: 18
+                        right: parent.right
+                        rightMargin: 18
+                    }
+                    height: 1
+                    color: Colors.md3.outline_variant
+                    opacity: 0.5
+                }
+            }
+        }
+    }
+
+    Labs.FileDialog {
+        id: vpnFilePicker
+        title: Localization.t("networkPage.vpn_import")
+        fileMode: Labs.FileDialog.OpenFiles
+        nameFilters: ["WireGuard (*.conf)"]
+        onAccepted: NetworkService.vpnImport(vpnFilePicker.files)
+    }
+
+    component VpnPill: Rectangle {
+        id: pill
+        property string text: ""
+        property string icon: ""
+        property color fill: Config.dim(Colors.md3.surface_container_high)
+        property color content: Colors.md3.on_surface_variant
+        property bool dragHover: false
+        property real outerLeft: 6
+        property real outerRight: 6
+        signal clicked
+
+        height: 28
+        width: pill.text !== "" ? pillRow.implicitWidth + 20 : 28
+        topLeftRadius: outerLeft
+        bottomLeftRadius: outerLeft
+        topRightRadius: outerRight
+        bottomRightRadius: outerRight
+        color: pill.dragHover ? Colors.md3.primary_container : pill.fill
+
+        Behavior on color { ColorAnimation { duration: 120 } }
+
+        Row {
+            id: pillRow
+            anchors.centerIn: parent
+            spacing: 4
+
+            MaterialIcon {
+                visible: pill.icon !== ""
+                anchors.verticalCenter: parent.verticalCenter
+                name: pill.icon
+                iconSize: 16
+                color: pill.dragHover ? Colors.md3.on_primary_container : pill.content
+                transitionType: "none"
+            }
+            Text {
+                visible: pill.text !== ""
+                anchors.verticalCenter: parent.verticalCenter
+                text: pill.text
+                font.family: Config.fontFamily
+                font.pixelSize: 11
+                font.weight: Font.Medium
+                color: pill.dragHover ? Colors.md3.on_primary_container : pill.content
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: pill.clicked()
+        }
+    }
+
+    Component {
+        id: vpnIconComp
+        MaterialIcon {
+            name: "shield-lock"
+            iconSize: 22
+            filled: NetworkService.vpnConnected
+            color: NetworkService.vpnConnected ? Colors.md3.on_tertiary_container : Colors.md3.outline
+        }
+    }
+
+    NetworkCard {
+        Layout.fillWidth: true
+        enabled: NetworkService.vpnConnected
+        tint: Colors.md3.tertiary_container
+        tintColor: Colors.md3.on_tertiary_container
+        iconComponent: vpnIconComp
+        title: NetworkService.vpnConnected ? NetworkService.vpnName : Localization.t("qsTileService.vpn")
+        subtitle: NetworkService.vpnConnected ? (NetworkService.vpnSubtitle(NetworkService.vpnActive[0]) || Localization.t("networkPage.connected")) : NetworkService.vpnProfiles.length === 0 ? Localization.t("qsTileService.vpn_none") : Localization.t("networkPage.not_connected")
+        hasSwitch: NetworkService.vpnProfiles.length > 0
+        switchChecked: NetworkService.vpnConnected
+        onSwitchToggled: NetworkService.toggleVpn()
+    }
+
+    SectionCard {
+        Layout.fillWidth: true
+
+        Item {
+            implicitWidth: parent?.width ?? 0
+            implicitHeight: 46
+
+            RowLayout {
+                anchors {
+                    fill: parent
+                    leftMargin: 16
+                    rightMargin: 14
+                }
+                spacing: 8
+
+                Text {
+                    text: Localization.t("networkPage.vpn_profiles")
+                    font.family: Config.fontFamily
+                    font.pixelSize: 11
+                    color: Colors.md3.outline
+                    Layout.fillWidth: true
+                }
+
+                VpnPill {
+                    Layout.alignment: Qt.AlignVCenter
+                    text: dragHover ? Localization.t("networkPage.vpn_drop") : Localization.t("networkPage.vpn_import")
+                    icon: "add"
+                    outerLeft: 14
+                    outerRight: 14
+                    onClicked: vpnFilePicker.open()
+
+                    DropArea {
+                        anchors.fill: parent
+                        keys: ["text/uri-list"]
+                        onEntered: parent.dragHover = true
+                        onExited: parent.dragHover = false
+                        onDropped: drop => {
+                            parent.dragHover = false;
+                            NetworkService.vpnImport(drop.urls ?? []);
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                anchors {
+                    bottom: parent.bottom
+                    left: parent.left
+                    leftMargin: 18
+                    right: parent.right
+                    rightMargin: 18
+                }
+                height: 1
+                color: Colors.md3.outline_variant
+                opacity: NetworkService.vpnProfiles.length > 0 ? 0.5 : 0
+            }
+        }
+
+        Repeater {
+            id: vpnRepeater
+            model: NetworkService.vpnProfiles
+
+            delegate: Item {
+                id: vpnRow
+                required property var modelData
+                required property int index
+                property bool renaming: false
+
+                implicitWidth: parent?.width ?? 0
+                implicitHeight: 58
+
+                RowLayout {
+                    anchors {
+                        fill: parent
+                        leftMargin: 16
+                        rightMargin: 14
+                    }
+                    spacing: 12
+
+                    Rectangle {
+                        Layout.alignment: Qt.AlignVCenter
+                        width: 34
+                        height: 34
+                        radius: 17
+                        color: vpnRow.modelData.active ? Colors.md3.tertiary_container : Config.dim(Colors.md3.surface_container_high)
+
+                        Behavior on color { ColorAnimation { duration: 150 } }
+
+                        MaterialIcon {
+                            anchors.centerIn: parent
+                            name: "shield-lock"
+                            iconSize: 18
+                            filled: vpnRow.modelData.active
+                            color: vpnRow.modelData.active ? Colors.md3.on_tertiary_container : Colors.md3.outline
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignVCenter
+                        spacing: 2
+
+                        Text {
+                            visible: !vpnRow.renaming
+                            text: vpnRow.modelData.name
+                            font.family: Config.fontFamily
+                            font.pixelSize: 13
+                            font.weight: vpnRow.modelData.active ? Font.Medium : Font.Normal
+                            color: Colors.md3.on_surface
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
+                        }
+
+                        TextInputField {
+                            id: renameField
+                            visible: vpnRow.renaming
+                            Layout.fillWidth: true
+                            implicitHeight: 30
+                            text: vpnRow.modelData.name
+                            onCommitted: t => {
+                                NetworkService.vpnRename(vpnRow.modelData.uuid, t);
+                                vpnRow.renaming = false;
+                            }
+                        }
+
+                        Text {
+                            visible: !vpnRow.renaming && text !== ""
+                            text: NetworkService.vpnSubtitle(vpnRow.modelData)
+                            font.family: Config.fontFamily
+                            font.pixelSize: 11
+                            color: vpnRow.modelData.active ? Colors.md3.primary : Colors.md3.outline
+                        }
+                    }
+
+                    Row {
+                        spacing: 2
+                        Layout.alignment: Qt.AlignVCenter
+
+                        VpnPill {
+                            text: vpnRow.modelData.active ? Localization.t("networkPage.disconnect") : Localization.t("networkPage.connect")
+                            outerLeft: 14
+                            fill: vpnRow.modelData.active ? Config.dim(Colors.md3.surface_container_high) : Colors.md3.secondary_container
+                            content: vpnRow.modelData.active ? Colors.md3.on_surface_variant : Colors.md3.on_secondary_container
+                            onClicked: vpnRow.modelData.active ? NetworkService.vpnDisconnect(vpnRow.modelData.uuid) : NetworkService.vpnConnect(vpnRow.modelData.uuid)
+                        }
+                        VpnPill {
+                            icon: vpnRow.renaming ? "check" : "edit"
+                            onClicked: vpnRow.renaming ? renameField.commit() : vpnRow.renaming = true
+                        }
+                        VpnPill {
+                            icon: "delete"
+                            outerRight: 14
+                            onClicked: NetworkService.vpnDelete(vpnRow.modelData.uuid)
+                        }
+                    }
+                }
+
+                Rectangle {
+                    visible: vpnRow.index < vpnRepeater.count - 1
                     anchors {
                         bottom: parent.bottom
                         left: parent.left
