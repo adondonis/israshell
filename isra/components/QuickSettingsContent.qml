@@ -20,6 +20,10 @@ Item {
     anchors.fill: parent
 
     Process {
+        id: appletProc
+    }
+
+    Process {
         id: sysProc
     }
 
