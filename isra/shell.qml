@@ -172,6 +172,10 @@ ShellRoot {
                 modelData: screenScope.modelData
             }
 
+            CavaWindow {
+                modelData: screenScope.modelData
+            }
+
             WallpaperPicker {
                 panelWindow: window
                 registry: rootShell.wallpaperPanels

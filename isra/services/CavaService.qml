@@ -8,7 +8,9 @@ import qs.style
 Singleton {
     id: service
 
-    property var targetValues: []
+    property var values: []
+    property string lastLine: ""
+    property bool settled: false
     property bool cavaEnabled: Config.cava.enabled
     
     property int activeBars: Config.cava.bars + (Config.cava.bars % 2)
@@ -92,7 +94,9 @@ Singleton {
         if (cavaEnabled) {
             retryTimer.stop();
         } else {
-            targetValues = [];
+            values = [];
+            lastLine = "";
+            settled = false;
         }
         updateProcessState();
     }
@@ -114,15 +118,27 @@ Singleton {
         stdout: SplitParser {
             onRead: data => {
                 var clean = data.trim();
-                if (!clean) return;
+                if (!clean || (clean === service.lastLine && service.settled)) return;
+                service.lastLine = clean;
 
                 var parts = clean.split(';');
                 if (parts.length > 0 && parts[parts.length - 1] === "") {
                     parts.pop();
                 }
 
-                var rawValues = parts.map(v => parseInt(v) || 0);
-                service.targetValues = service.rearrange(rawValues, Config.cava.layout);
+                var raw = service.rearrange(parts.map(v => parseInt(v) || 0), Config.cava.layout);
+                var cur = service.values;
+                var same = cur.length === raw.length;
+                var settled = true;
+                for (var i = 0; i < raw.length; i++) {
+                    var diff = same ? raw[i] - cur[i] : 0;
+                    if (Math.abs(diff) > 0.05) {
+                        raw[i] = cur[i] + diff * 0.1;
+                        settled = false;
+                    }
+                }
+                service.settled = settled;
+                service.values = raw;
             }
         }
 

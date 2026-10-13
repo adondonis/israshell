@@ -64,7 +64,7 @@ Singleton {
             color: "primary",
             colorAlt: "error",
 
-            height: 150,
+            heightPct: 15,
             opacity: 0.3
         })
     property var sounds: ({
@@ -375,7 +375,7 @@ Singleton {
                 colorStyle: "loudness",
                 color: "primary",
                 colorAlt: "error",
-                height: 150,
+                heightPct: 15,
                 opacity: 0.3
             },
             workspaces: {
@@ -615,6 +615,9 @@ Singleton {
 
         if (data.tintIcons === undefined && data.bar && data.bar.tintTrayIcons !== undefined)
             result.tintIcons = data.bar.tintTrayIcons;
+
+        if (result.cava && data.cava && data.cava.heightPct === undefined && data.cava.height !== undefined)
+            result.cava.heightPct = Math.max(5, Math.min(100, Math.round(data.cava.height / 10.8)));
 
         if (result.bar)
             result.bar = WidgetService.reconcile(result.bar);

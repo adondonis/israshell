@@ -137,14 +137,6 @@ PanelWindow {
         }
     }
 
-    CavaVisualizer {
-        id: cavaVisualizer
-        z: 6.5
-        anchors.fill: parent
-        pause: LockscreenService.locked || GameModeService.active
-        visible: Config.cava.enabled
-    }
-
     Repeater {
         model: DesktopWidgetService.entryModel
 

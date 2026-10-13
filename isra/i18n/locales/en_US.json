@@ -84,7 +84,7 @@
   "backgroundPage.grid_gutter": "Grid gutter",
   "backgroundPage.grid_margin": "Grid margin",
   "backgroundPage.height": "Height",
-  "backgroundPage.height_of_the_visualizer_in": "Height of the visualizer in pixels",
+  "backgroundPage.height_of_the_visualizer_in": "Height of the visualizer as a percentage of the screen",
   "backgroundPage.how_bars_are_arranged_across": "How bars are arranged across the width",
   "backgroundPage.how_colors_are_applied_across": "How colors are applied across the spectrum",
   "backgroundPage.how_fast_it_chases_the": "How fast it chases the cursor",

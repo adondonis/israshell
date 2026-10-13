@@ -750,7 +750,7 @@ CAVAEOF`]
             }
         }
 
-        Canvas {
+        CavaVisualizer {
             id: cavaViz
             anchors.fill: parent
             visible: root.showVisualizer
@@ -762,66 +762,20 @@ CAVAEOF`]
                 }
             }
 
-            onPaint: {
-                const ctx = getContext("2d");
-                ctx.clearRect(0, 0, width, height);
-
-                const bars = root.cavaBars;
-                if (!bars || bars.length < 2)
-                    return;
-
-                const n = bars.length;
-                const col = root.colPrimary;
-
-                const pts = [];
-                for (let i = 0; i < n; i++) {
-                    pts.push({
-                        x: (i / (n - 1)) * width,
-                        y: (bars[i] / 1000) * height
-                    });
-                }
-
-                ctx.beginPath();
-                ctx.moveTo(pts[0].x, pts[0].y);
-                for (let i = 0; i < pts.length - 1; i++) {
-                    const mx = (pts[i].x + pts[i + 1].x) / 2;
-                    const my = (pts[i].y + pts[i + 1].y) / 2;
-                    ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
-                }
-                ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
-
-                ctx.lineTo(width, 0);
-                ctx.lineTo(0, 0);
-                ctx.closePath();
-
-                const grad = ctx.createLinearGradient(0, 0, 0, height);
-                grad.addColorStop(0.0, Qt.rgba(col.r, col.g, col.b, 0.5));
-                grad.addColorStop(1.0, Qt.rgba(col.r, col.g, col.b, 0.0));
-                ctx.fillStyle = grad;
-                ctx.fill();
-
-                ctx.beginPath();
-                ctx.moveTo(pts[0].x, pts[0].y);
-                for (let i = 0; i < pts.length - 1; i++) {
-                    const mx = (pts[i].x + pts[i + 1].x) / 2;
-                    const my = (pts[i].y + pts[i + 1].y) / 2;
-                    ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
-                }
-                ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
-                ctx.strokeStyle = Qt.rgba(col.r, col.g, col.b, 0.9);
-                ctx.lineWidth = 1.5;
-                ctx.stroke();
-            }
-
-            Connections {
-                target: root
-                function onCavaBarsChanged() {
-                    cavaViz.requestPaint();
-                }
-                function onColPrimaryChanged() {
-                    cavaViz.requestPaint();
-                }
-            }
+            values: root.cavaBars
+            maxValue: 1000
+            cavaColor: root.colPrimary
+            overrideMaxHeight: height
+            style: ({
+                    enabled: true,
+                    position: 0,
+                    renderType: "curve",
+                    curveType: "smooth",
+                    drawFill: true,
+                    drawStroke: true,
+                    colorStyle: "solid",
+                    opacity: 0.5
+                })
         }
 
         Rectangle {

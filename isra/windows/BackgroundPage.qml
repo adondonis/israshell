@@ -492,7 +492,6 @@ PageBase {
                 CavaVisualizer {
                     id: previewVisualizer
                     anchors.fill: parent
-                    overrideMaxHeight: 120
                     useMock: true
                 }
             }
@@ -671,13 +670,13 @@ PageBase {
             SettingSlider {
                 label: Localization.t("backgroundPage.height")
                 sublabel: Localization.t("backgroundPage.height_of_the_visualizer_in")
-                from: 40
-                to: 1200
-                unit: "px"
-                value: Config.cava.height
+                from: 5
+                to: 100
+                unit: "%"
+                value: Config.cava.heightPct
                 onMoved: v => Config.update({
                         cava: Object.assign({}, Config.cava, {
-                            height: Math.round(v)
+                            heightPct: Math.round(v)
                         })
                     })
             }
