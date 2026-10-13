@@ -63,6 +63,8 @@ Item {
 
     readonly property int axisSteps: 8
 
+    readonly property var latinOnly: /^[\u0000-\u024F\u2000-\u206F\u20A0-\u20CF]*$/
+
     function axesAt(t) {
         const q = Math.round(Math.max(0, Math.min(1, t)) * root.axisSteps) / root.axisSteps;
         return {
@@ -448,7 +450,7 @@ Item {
                                         font.pixelSize: root.lyricSize
                                         font.weight: root.isFlex ? Font.Normal : (line.isActive ? Font.DemiBold : Font.Normal)
                                         font.variableAxes: {
-                                            if (!root.isFlex)
+                                            if (!root.isFlex || !root.latinOnly.test(word.modelData.text))
                                                 return ({});
                                             return root.axesAt(root.wordMode && line.isActive ? word.p : line.lineT);
                                         }
