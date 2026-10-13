@@ -3,6 +3,7 @@ import Quickshell
 import QtQuick.Shapes
 import QtQuick.Effects
 import Quickshell.Io
+import "MaterialIconCache.js" as IconCache
 
 Item {
     id: root
@@ -42,44 +43,43 @@ Item {
     onNameChanged: loadSvgs()
     Component.onCompleted: loadSvgs()
 
-    property string _currentLoadingName: ""
+    property bool _needFiles: false
     property bool _outlineLoaded: false
     property bool _filledLoaded: false
-    property string _outlineContent: ""
-    property string _filledContent: ""
+    property string _outlineFile: ""
+    property string _filledFile: ""
+    property var _outlineNext: []
+    property var _filledNext: []
 
     function loadSvgs() {
         if (!name) {
             root._outlinePaths = [];
             root._filledPaths = [];
-            root._currentLoadingName = "";
+            root._needFiles = false;
             return;
         }
 
-        let loadingName = name.toLowerCase();
-        root._currentLoadingName = loadingName;
-        root._outlineLoaded = false;
-        root._filledLoaded = false;
+        const dir = Quickshell.shellDir + "/icons/";
+        const n = name.toLowerCase();
+        root._outlineFile = dir + "outline/" + n + ".svg";
+        root._filledFile = dir + "filled/" + n + ".svg";
 
-        outlineFileView.path = Quickshell.shellDir + "/icons/outline/" + loadingName + ".svg";
-        filledFileView.path = Quickshell.shellDir + "/icons/filled/" + loadingName + ".svg";
+        const o = IconCache.get(root._outlineFile);
+        const f = IconCache.get(root._filledFile);
+        root._outlineLoaded = o !== undefined;
+        root._filledLoaded = f !== undefined;
+        root._outlineNext = o ?? [];
+        root._filledNext = f ?? [];
+        root._needFiles = !(root._outlineLoaded && root._filledLoaded);
+        root.checkCompletion();
     }
 
     function checkCompletion() {
         if (root._outlineLoaded && root._filledLoaded) {
-            root._outlinePaths = root._outlineContent ? parseSvgPaths(root._outlineContent) : [];
-            root._filledPaths = root._filledContent ? parseSvgPaths(root._filledContent) : [];
+            root._outlinePaths = root._outlineNext;
+            root._filledPaths = root._filledNext;
+            root._needFiles = false;
         }
-    }
-
-    function parseSvgPaths(xmlContent) {
-        let paths = [];
-        let regex = /d="([^"]+)"/g;
-        let match;
-        while ((match = regex.exec(xmlContent)) !== null) {
-            paths.push(match[1]);
-        }
-        return paths;
     }
 
     Item {
@@ -198,7 +198,7 @@ Item {
         layer.smooth: true
         layer.effect: MultiEffect {
             maskEnabled: true
-            maskSource: circleMask
+            maskSource: circleMaskLoader.item
         }
 
         opacity: transitionType === "crossfade-scale" ? root._progress : 1
@@ -235,51 +235,74 @@ Item {
         }
     }
 
-    Item {
-        id: circleMask
-        width: root.width   
-        height: root.height 
+    Loader {
+        id: circleMaskLoader
+
+        active: root.transitionType === "circle"
         visible: false
-        layer.enabled: true
-        layer.samples: 4
-        layer.smooth: true
 
-        Rectangle {
-            width: root._diagonal * root._progress
-            height: root._diagonal * root._progress
-            radius: width / 2
-            anchors.centerIn: parent
-            color: "black"
+        sourceComponent: Item {
+            width: root.width
+            height: root.height
+            layer.enabled: true
+            layer.samples: 4
+            layer.smooth: true
+
+            Rectangle {
+                width: root._diagonal * root._progress
+                height: root._diagonal * root._progress
+                radius: width / 2
+                anchors.centerIn: parent
+                color: "black"
+            }
         }
     }
 
-    FileView {
-        id: outlineFileView
-        printErrors: false
-        onLoaded: {
-            root._outlineContent = text();
-            root._outlineLoaded = true;
-            checkCompletion();
-        }
-        onLoadFailed: {
-            root._outlineContent = "";
-            root._outlineLoaded = true;
-            checkCompletion();
-        }
-    }
+    Loader {
+        active: root._needFiles
 
-    FileView {
-        id: filledFileView
-        printErrors: false
-        onLoaded: {
-            root._filledContent = text();
-            root._filledLoaded = true;
-            checkCompletion();
-        }
-        onLoadFailed: {
-            root._filledContent = "";
-            root._filledLoaded = true;
-            checkCompletion();
+        sourceComponent: Item {
+            FileView {
+                printErrors: false
+                path: root._outlineLoaded ? "" : root._outlineFile
+                onLoaded: {
+                    const paths = IconCache.set(path, text());
+                    if (path === root._outlineFile) {
+                        root._outlineNext = paths;
+                        root._outlineLoaded = true;
+                        root.checkCompletion();
+                    }
+                }
+                onLoadFailed: {
+                    const paths = IconCache.set(path, "");
+                    if (path === root._outlineFile) {
+                        root._outlineNext = paths;
+                        root._outlineLoaded = true;
+                        root.checkCompletion();
+                    }
+                }
+            }
+
+            FileView {
+                printErrors: false
+                path: root._filledLoaded ? "" : root._filledFile
+                onLoaded: {
+                    const paths = IconCache.set(path, text());
+                    if (path === root._filledFile) {
+                        root._filledNext = paths;
+                        root._filledLoaded = true;
+                        root.checkCompletion();
+                    }
+                }
+                onLoadFailed: {
+                    const paths = IconCache.set(path, "");
+                    if (path === root._filledFile) {
+                        root._filledNext = paths;
+                        root._filledLoaded = true;
+                        root.checkCompletion();
+                    }
+                }
+            }
         }
     }
 }
