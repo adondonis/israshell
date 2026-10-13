@@ -86,6 +86,7 @@ ShellRoot {
     Logout {}
     PolkitDialog {}
     GameOverlay {}
+    VoiceIndicator {}
 
     component BarZone: Row {
         id: zone
@@ -240,6 +241,7 @@ ShellRoot {
                            blacklist.includes("cts") &&
                            blacklist.includes("ocr") &&
                            blacklist.includes("songrec") &&
+                           blacklist.includes("voice") &&
                            blacklist.includes("record") &&
                            blacklist.includes("localsend") &&
                            blacklist.includes("wallpaper") &&

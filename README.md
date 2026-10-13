@@ -60,6 +60,7 @@ All handlers are called with `qs -c isra ipc call <target> <function> [args]`.
 | `switcher` | `next`, `prev`, `commit` | Alt+Tab style window switcher, `commit` focuses the selected window |
 | `lockscreen` | `lock` | |
 | `gamemode` | `toggle` | |
+| `voice` | `press`, `release`, `toggle`, `cancel` | Speech to text optionally using `wtype` and downloadable whisper models |
 | `gameoverlay` | `toggle`, `crosshair(code)`, `unpin` | Crosshair, Performance, audio mixer, capture. `crosshair` takes a Valorant crosshair code, `unpin` unpins everything |
 | `bedtime` | `toggle` | |
 | `aiassistant` | `toggle` | |

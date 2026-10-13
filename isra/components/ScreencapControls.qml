@@ -49,6 +49,8 @@ Rectangle {
             return localsendComp;
         case "songrec":
             return songrecComp;
+        case "voice":
+            return voiceComp;
         case "record":
             return recordComp;
         default:
@@ -145,7 +147,8 @@ Rectangle {
         function rebuildModel() {
             if (rowLayout.draggingType !== "")
                 return;
-            const active = Config.screencap.order.filter(t => root.isEnabled(t) && root.componentFor(t));
+            const order = Config.screencap.order;
+            const active = order.concat(order.includes("voice") ? [] : ["voice"]).filter(t => root.isEnabled(t) && root.componentFor(t));
             if (active.length === orderModel.count) {
                 let same = true;
                 for (let i = 0; i < active.length; i++) {
@@ -769,6 +772,73 @@ Rectangle {
                     srItem.recognizeFile(path);
                     drop.accept();
                 }
+            }
+        }
+    }
+
+    Component {
+        id: voiceComp
+        Item {
+            height: 32
+            width: voiceBg.width
+
+            readonly property bool recording: VoiceService.phase === "recording"
+            readonly property bool working: VoiceService.phase === "transcribing"
+
+            Rectangle {
+                id: voiceBg
+                anchors.verticalCenter: parent.verticalCenter
+                width: (parent.recording || parent.working) ? 38 : 32
+                height: 26
+                radius: 16
+                color: {
+                    if (parent.working)
+                        return Qt.alpha(Colors.md3.tertiary, 0.15);
+                    if (parent.recording)
+                        return Qt.alpha(Colors.md3.primary, 0.15);
+                    return voiceHover.containsMouse ? Qt.alpha(Colors.md3.on_surface, 0.08) : "transparent";
+                }
+
+                Behavior on width {
+                    NumberAnimation {
+                        duration: 250
+                        easing.type: Easing.OutCubic
+                    }
+                }
+                Behavior on color {
+                    ColorAnimation {
+                        duration: 200
+                    }
+                }
+            }
+
+            MaterialIcon {
+                name: "mic"
+                iconSize: 18
+                anchors.centerIn: parent
+                color: parent.working ? Colors.md3.tertiary : (parent.recording ? Colors.md3.primary : Colors.md3.on_surface)
+                Behavior on color {
+                    ColorAnimation {
+                        duration: 200
+                    }
+                }
+            }
+
+            HoverHandler {
+                id: voiceHover
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    if (PanelService.current)
+                        PanelService.current.close();
+                    VoiceService.toggle();
+                }
+                onEntered: tooltipWindow.show(parent, parent.recording ? Localization.t("screencapControls.stop_dictation") : Localization.t("screencapControls.dictate"))
+                onExited: tooltipWindow.hide()
             }
         }
     }

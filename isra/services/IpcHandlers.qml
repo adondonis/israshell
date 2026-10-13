@@ -69,6 +69,22 @@ Item {
     }
 
     IpcHandler {
+        target: "voice"
+        function press(): void {
+            VoiceService.press();
+        }
+        function release(): void {
+            VoiceService.release();
+        }
+        function toggle(): void {
+            VoiceService.toggle();
+        }
+        function cancel(): void {
+            VoiceService.cancel();
+        }
+    }
+
+    IpcHandler {
         target: "bedtime"
         function toggle(): void {
             BedtimeService.toggle();

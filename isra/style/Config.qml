@@ -259,7 +259,7 @@ Singleton {
     property bool desktopClock: true
     property var screencap: ({
             blacklist: ["cts", "ocr"],
-            order: ["wallpaper", "screenshot", "cts", "ocr", "colorpicker", "localsend", "songrec", "record"],
+            order: ["wallpaper", "screenshot", "cts", "ocr", "colorpicker", "localsend", "songrec", "voice", "record"],
             screenshotPath: "~/.config/hypr/scripts/screenshot.sh",
             recordPath: "~/.config/hypr/scripts/record.sh",
             ctsPath: "~/.config/quickshell/isra/scripts/cts.sh",
@@ -276,6 +276,16 @@ Singleton {
             clickthroughOpacity: 0.8,
             pingHost: "1.1.1.1",
             widgets: {}
+        })
+    property var voice: ({
+            output: "type",        // "type" = type into focused window | "copy" = yo.
+            language: "auto",
+            model: "base",
+            gpu: true,
+            serverPath: "",
+            modelPath: "",
+            port: 8190,
+            unloadSeconds: 60
         })
     property var neko: ({
             enabled: false,
@@ -504,7 +514,7 @@ Singleton {
             desktopClock: true,
             screencap: {
                 blacklist: ["cts", "ocr"],
-                order: ["wallpaper", "screenshot", "cts", "ocr", "colorpicker", "localsend", "songrec", "record"],
+                order: ["wallpaper", "screenshot", "cts", "ocr", "colorpicker", "localsend", "songrec", "voice", "record"],
                 screenshotPath: "~/.config/quickshell/isra/scripts/screenshot.sh",
                 recordPath: "~/.config/quickshell/isra/scripts/record.sh",
                 ctsPath: "~/.config/quickshell/isra/scripts/cts.sh",
@@ -520,6 +530,16 @@ Singleton {
                 clickthroughOpacity: 0.8,
                 pingHost: "1.1.1.1",
                 widgets: {}
+            },
+            voice: {
+                output: "type",
+                language: "auto",
+                model: "base",
+                gpu: true,
+                serverPath: "",
+                modelPath: "",
+                port: 8190,
+                unloadSeconds: 60
             },
             neko: {
                 enabled: false,

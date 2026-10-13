@@ -16,6 +16,39 @@ PageBase {
     title: Localization.t("settingsWindow.system")
     subtitle: Localization.t("systemPage.about_and_script_paths")
 
+    function setVoice(key, value) {
+        Config.update({
+            voice: Object.assign({}, Config.voice, {
+                [key]: value
+            })
+        });
+    }
+
+    readonly property var voiceLanguages: {
+        const codes = "en zh de es ru ko fr ja pt tr pl ca nl ar sv it id hi fi vi he uk el ms cs ro da hu ta no th ur hr bg lt la mi ml cy sk te fa lv bn sr az sl kn et mk br eu is hy ne mn bs kk sq sw gl mr pa si km sn yo so af oc ka be tg sd gu am yi lo uz fo ht ps tk nn mt sa lb my bo tl mg as tt haw ln ha ba jw su yue".split(" ");
+        const own = {
+            en: "English",
+            es: "Español",
+            zh: "中文",
+            yue: "粵語"
+        };
+        const opts = codes.map(c => {
+            const loc = Qt.locale(c === "jw" ? "jv" : c);
+            let name = own[c] ?? (loc.name !== "C" ? loc.nativeLanguageName : c);
+            if (/^[\u0000-\u052f]/.test(name))
+                name = name.charAt(0).toUpperCase() + name.slice(1);
+            return {
+                label: name + " (" + c + ")",
+                value: c
+            };
+        });
+        opts.sort((a, b) => a.label.localeCompare(b.label));
+        return [{
+                label: Localization.t("voicePage.language_auto"),
+                value: "auto"
+            }].concat(opts);
+    }
+
     readonly property var dotMaterialShapes: ["clover4", "arrow", "pill", "softBurst", "diamond", "clamShell", "pentagon"]
 
     Component {
@@ -62,8 +95,12 @@ PageBase {
         });
     }
 
-    onActiveChanged: if (active)
-        Updater.checkNow()
+    onActiveChanged: {
+        if (!active)
+            return;
+        Updater.checkNow();
+        VoiceService.refresh();
+    }
 
     ColumnLayout {
         Layout.fillWidth: true
@@ -653,6 +690,262 @@ PageBase {
                             notifyOnReceive: v
                         })
                     })
+            }
+        }
+
+        SectionCard {
+            label: Localization.t("voicePage.title")
+            Layout.fillWidth: true
+
+            SettingRow {
+                label: Localization.t("voicePage.engine")
+                sublabel: {
+                    const v = VoiceService;
+                    if (v.installStep === "download")
+                        return Localization.t("voicePage.engine_fetching").arg(Math.round(v.installProgress * 100));
+                    if (v.installStep === "error")
+                        return v.installError || Localization.t("voice.failed");
+                    if (Config.voice.serverPath !== "")
+                        return Localization.t(v.serverFound ? "voicePage.engine_custom" : "voicePage.engine_custom_missing");
+                    if (v.engineVersion !== "")
+                        return "whisper.cpp " + v.engineVersion.split("+")[0] + " · " + Localization.t("voicePage.engine_vulkan");
+                    return Localization.t("voicePage.engine_missing");
+                }
+
+                WavyProgress {
+                    anchors.verticalCenter: parent?.verticalCenter
+                    visible: VoiceService.installStep === "download"
+                    width: 110
+                    value: VoiceService.installProgress
+                }
+
+                ActionButton {
+                    anchors.verticalCenter: parent?.verticalCenter
+                    visible: VoiceService.installStep !== "download" && Config.voice.serverPath === "" && VoiceService.engineVersion !== VoiceService.engineTag
+                    icon: VoiceService.engineVersion !== "" ? "restart" : "download-for-offline"
+                    label: Localization.t(VoiceService.installStep === "error" ? "voicePage.retry" : VoiceService.engineVersion !== "" ? "voicePage.update" : "voicePage.install")
+                    onClicked: VoiceService.installEngine()
+                }
+            }
+
+            SettingRow {
+                id: modelRow
+                stack: true
+                label: Localization.t("voicePage.model")
+                sublabel: Config.voice.modelPath !== "" ? Localization.t("voicePage.model_custom") : Localization.t("voicePage.model_sub")
+
+                Column {
+                    width: modelRow.contentWidth
+                    topPadding: 2
+                    spacing: 6
+
+                    Repeater {
+                        model: VoiceService.models
+
+                        delegate: Rectangle {
+                            id: tile
+                            required property var modelData
+
+                            readonly property bool have: VoiceService.downloaded.includes(modelData.file)
+                            readonly property bool active: have && Config.voice.modelPath === "" && Config.voice.model === modelData.id
+                            readonly property bool loading: VoiceService.downloading === modelData.id
+
+                            width: parent.width
+                            height: 44
+                            radius: active ? 22 : 14
+                            color: active ? Colors.md3.primary_container : tileMa.containsMouse ? Config.dim(Colors.md3.surface_container_highest) : Config.dim(Colors.md3.surface_container_high)
+
+                            Behavior on radius {
+                                NumberAnimation {
+                                    duration: 350
+                                    easing.type: Easing.OutBack
+                                    easing.overshoot: 2.2
+                                }
+                            }
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: 150
+                                }
+                            }
+
+                            MouseArea {
+                                id: tileMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: tile.active || tile.loading ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                onClicked: {
+                                    if (tile.have)
+                                        VoiceService.selectModel(tile.modelData.id);
+                                    else if (!tile.loading)
+                                        VoiceService.downloadModel(tile.modelData.id);
+                                }
+                            }
+
+                            RowLayout {
+                                anchors {
+                                    fill: parent
+                                    leftMargin: 14
+                                    rightMargin: 6
+                                }
+                                spacing: 10
+
+                                Text {
+                                    text: tile.modelData.name
+                                    font.family: Config.fontFamily
+                                    font.pixelSize: 13
+                                    font.weight: tile.active ? Font.Medium : Font.Normal
+                                    color: tile.active ? Colors.md3.on_primary_container : Colors.md3.on_surface
+                                }
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: Localization.t("voicePage.params").arg(tile.modelData.params) + " · " + tile.modelData.size + " · " + Localization.t("voicePage.hint_" + tile.modelData.id)
+                                    font.family: Config.fontFamily
+                                    font.pixelSize: 11
+                                    color: tile.active ? Colors.md3.on_primary_container : Colors.md3.outline
+                                    opacity: tile.active ? 0.8 : 1
+                                    elide: Text.ElideRight
+                                }
+
+                                WavyProgress {
+                                    visible: tile.loading
+                                    Layout.preferredWidth: 90
+                                    value: VoiceService.downloadProgress
+                                }
+
+                                Text {
+                                    visible: tile.loading
+                                    text: Math.round(VoiceService.downloadProgress * 100) + "%"
+                                    font.family: Config.fontFamily
+                                    font.pixelSize: 11
+                                    color: Colors.md3.on_surface_variant
+                                    horizontalAlignment: Text.AlignRight
+                                    Layout.preferredWidth: 30
+                                }
+
+                                MaterialIcon {
+                                    visible: tile.active
+                                    name: "check"
+                                    iconSize: 18
+                                    color: Colors.md3.on_primary_container
+                                    transitionType: "none"
+                                    Layout.rightMargin: 8
+                                }
+
+                                Rectangle {
+                                    readonly property bool isButton: tile.loading || tile.have
+                                    visible: !tile.active
+                                    implicitWidth: 32
+                                    implicitHeight: 32
+                                    radius: 16
+                                    color: !isButton ? "transparent" : iconMa.containsMouse ? Colors.md3.surface_bright : Config.dim(Colors.md3.surface_container_highest)
+
+                                    MaterialIcon {
+                                        anchors.centerIn: parent
+                                        name: tile.loading ? "close" : tile.have ? "delete" : "arrow-downward"
+                                        iconSize: 17
+                                        color: parent.isButton ? Colors.md3.on_surface : Colors.md3.on_surface_variant
+                                        transitionType: "none"
+                                    }
+
+                                    MouseArea {
+                                        id: iconMa
+                                        anchors.fill: parent
+                                        enabled: parent.isButton
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            if (tile.loading)
+                                                VoiceService.cancelDownload();
+                                            else
+                                                VoiceService.deleteModel(tile.modelData.id);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            SettingSwitch {
+                label: Localization.t("voicePage.gpu")
+                sublabel: Localization.t("voicePage.gpu_sub")
+                checked: Config.voice.gpu
+                onToggled: v => pageRoot.setVoice("gpu", v)
+            }
+
+            SettingChips {
+                label: Localization.t("voicePage.output")
+                sublabel: Localization.t(VoiceService.hasWtype ? "voicePage.output_sub" : "voicePage.output_no_wtype")
+                enabled: VoiceService.hasWtype
+                opacity: enabled ? 1.0 : 0.4
+                options: [
+                    {
+                        label: Localization.t("voicePage.output_type"),
+                        value: "type"
+                    },
+                    {
+                        label: Localization.t("voicePage.output_copy"),
+                        value: "copy"
+                    }
+                ]
+                currentValue: VoiceService.output
+                onSelected: v => pageRoot.setVoice("output", v)
+            }
+
+            SettingSelect {
+                label: Localization.t("voicePage.language")
+                sublabel: Localization.t("voicePage.language_sub")
+                options: pageRoot.voiceLanguages
+                currentValue: Config.voice.language
+                onSelected: v => pageRoot.setVoice("language", v)
+            }
+
+            SettingSlider {
+                isLast: true
+                label: Localization.t("voicePage.unload")
+                sublabel: Localization.t("voicePage.unload_sub")
+                from: 0
+                to: 600
+                stepSize: 30
+                unit: "s"
+                value: Config.voice.unloadSeconds
+                onMoved: v => pageRoot.setVoice("unloadSeconds", v)
+            }
+        }
+
+        SectionCard {
+            label: Localization.t("voicePage.advanced")
+            Layout.fillWidth: true
+
+            SettingInput {
+                label: Localization.t("voicePage.server")
+                sublabel: Localization.t("voicePage.server_sub")
+                fieldWidth: 220
+                value: Config.voice.serverPath
+                onCommitted: v => pageRoot.setVoice("serverPath", v.trim())
+            }
+
+            SettingInput {
+                label: Localization.t("voicePage.custom_model")
+                sublabel: Localization.t("voicePage.custom_model_sub")
+                fieldWidth: 220
+                value: Config.voice.modelPath
+                onCommitted: v => pageRoot.setVoice("modelPath", v.trim())
+            }
+
+            SettingInput {
+                isLast: true
+                label: Localization.t("voicePage.port")
+                sublabel: Localization.t("voicePage.port_sub")
+                fieldWidth: 90
+                value: String(Config.voice.port)
+                onCommitted: v => {
+                    const n = parseInt(v);
+                    if (n > 0 && n < 65536)
+                        pageRoot.setVoice("port", n);
+                }
             }
         }
 

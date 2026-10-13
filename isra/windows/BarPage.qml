@@ -686,6 +686,10 @@ PageBase {
                         label: Localization.t("barPage.recognize_music")
                     },
                     {
+                        key: "voice",
+                        label: Localization.t("screencapControls.dictate")
+                    },
+                    {
                         key: "wallpaper",
                         label: Localization.t("barPage.wallpaper_picker")
                     },
