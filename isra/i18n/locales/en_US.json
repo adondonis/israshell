@@ -1233,5 +1233,11 @@
   "widgetSettings.sunmoon_mode": "Display",
   "wolframWidget.query_failed": "Query failed",
   "wolframWidget.thinking": "thinking...",
-  "overview.special": "Special workspaces"
+  "overview.special": "Special workspaces",
+  "dockMenu.open": "Open",
+  "dockMenu.open_floating": "Open floating",
+  "dockMenu.pin": "Pin to dock",
+  "dockMenu.unpin": "Unpin from dock",
+  "dockMenu.close": "Close",
+  "dockMenu.kill": "Kill"
 }

@@ -281,6 +281,10 @@ Scope {
         _dispatch(`hl.dsp.exec_cmd("${cmd.replace(/"/g, '\\"')}")`);
     }
 
+    function execFloating(cmd: string): void {
+        _dispatch(`hl.dsp.exec_cmd("${cmd.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}", { float = true })`);
+    }
+
     function dpms(action: string, monitorName: string): void {
         _dispatch(
             monitorName

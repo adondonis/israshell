@@ -102,7 +102,7 @@ Item {
         onTriggered: dockRoot.hoverLatched = false
     }
 
-    readonly property bool interactionHold: dockModelImpl.draggingKey !== "" || hoverPopup.isOpen || trashBusy
+    readonly property bool interactionHold: dockModelImpl.draggingKey !== "" || hoverPopup.isOpen || hoverPopup.menuOpen || trashBusy
         || fileDragOverSensor || trashFileHovering
     property bool trashBusy: false
     property bool trashFileHovering: false

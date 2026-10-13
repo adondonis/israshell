@@ -268,7 +268,7 @@ ShellRoot {
                 readonly property bool huggingCornersVisible: screenScope.barMode === 0 && Config.bar.transparency !== 2
 
                 readonly property string currentPanelType: ((PanelService.current?.panelType ?? "") !== "" && PanelService.currentScreen === modelData) ? PanelService.current.panelType : ""
-                readonly property bool ownsOpenMergedPanel: currentPanelType !== ""
+                readonly property bool ownsOpenMergedPanel: currentPanelType !== "" || dockMenuOpen
                 readonly property bool anyMergedPanelOpen: (PanelService.current?.panelType ?? "") !== ""
 
                 onOwnsOpenMergedPanelChanged: {
@@ -307,6 +307,8 @@ ShellRoot {
                 }
 
                 property rect dockHoverRect: Qt.rect(0, 0, 0, 0)
+                property int dockMenuCount: 0
+                readonly property bool dockMenuOpen: dockMenuCount > 0
 
                 Region {
                     id: barOnlyMask
@@ -329,7 +331,7 @@ ShellRoot {
                         item: floatingDockLoader.item?.sensorStripItem ?? null
                     }
                 }
-                mask: anyMergedPanelOpen ? null : barOnlyMask
+                mask: (anyMergedPanelOpen || dockMenuOpen) ? null : barOnlyMask
 
                 anchors.top: true
                 anchors.bottom: true

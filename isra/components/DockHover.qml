@@ -33,6 +33,59 @@ Item {
         when: root.host !== null
     }
 
+    readonly property bool menuOpen: itemMenu.visible
+
+    property bool _counted: false
+    onMenuOpenChanged: _setCounted(menuOpen)
+    Component.onDestruction: _setCounted(false)
+
+    function _setCounted(on: bool): void {
+        const w = root.dockRoot.QsWindow.window;
+        if (!w || on === _counted) return;
+        _counted = on;
+        w.dockMenuCount += on ? 1 : -1;
+    }
+
+    property Item menuButton: null
+
+    function hideNow(): void {
+        openTimer.stop();
+        hideTimer.stop();
+        pendingButton = null;
+        closeTimer.stop();
+        closeTimer.triggered();
+    }
+
+    function openMenu(button: Item, entries: var): void {
+        if (!host) return;
+        hideNow();
+        menuButton = button;
+        const w = itemMenu._measuredW(entries);
+        const h = itemMenu._measuredH(entries);
+        const tl = button.mapToItem(host, 0, 0);
+        let x = tl.x + (button.width - w) / 2;
+        let y = tl.y + (button.height - h) / 2;
+        if (dockEdge === 0) y = tl.y + button.height + gap;
+        else if (dockEdge === 1) y = tl.y - h - gap;
+        else if (dockEdge === 2) x = tl.x + button.width + gap;
+        else x = tl.x - w - gap;
+        itemMenu.anchorOrigin = [Item.Top, Item.Bottom, Item.Left, Item.Right][dockEdge] ?? -1;
+        itemMenu.open(x, y, entries, w);
+    }
+
+    Shortcut {
+        sequence: "Escape"
+        enabled: root.menuOpen
+        onActivated: itemMenu.close()
+    }
+
+    ContextMenu {
+        id: itemMenu
+        parent: root.host ?? root
+        hostScreen: root.dockRoot.QsWindow.window?.screen ?? null
+        z: 1000
+    }
+
     property Item targetButton: null
     property string targetKey: ""
 
@@ -133,6 +186,7 @@ Item {
     }
 
     function request(button: Item): void {
+        if (menuOpen) return;
         hideTimer.stop();
         
         if (closeTimer.running) {
@@ -641,7 +695,7 @@ Item {
                                 id: screencopyView
                                 anchors.fill: parent
                                 captureSource: (previewCard.isHyprland && !previewCard.isClosing && previewCard.toplevel) ? previewCard.toplevel : null
-                                live: previewCard.isHyprland && !previewCard.isClosing
+                                live: previewCard.isHyprland && !previewCard.isClosing && PowerProfileService.liveCaptureAllowed
                                 visible: previewCard.isHyprland && screencopyView.hasContent
                             }
 

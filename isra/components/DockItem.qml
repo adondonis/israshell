@@ -6,6 +6,7 @@ import QtQuick
 import Qt5Compat.GraphicalEffects
 
 import qs.style
+import qs.icons
 import qs.services
 import "siteIcons.js" as SiteIcons
 
@@ -94,6 +95,57 @@ Item {
         return Quickshell.iconPath(name, "application-x-executable");
     }
 
+    function launch(floating: bool): void {
+        if (!floating) {
+            if (root.desktopEntry)
+                root.desktopEntry.execute();
+            else
+                CompositorService.exec(root.appId);
+            return;
+        }
+        const quote = a => "'" + a.replace(/'/g, "'\\''") + "'";
+        const cmd = root.desktopEntry ? root.desktopEntry.command.map(quote).join(" ") : root.appId;
+        CompositorService.execFloating(cmd);
+    }
+
+    function closeAll(): void {
+        for (const tl of root.toplevels)
+            if (tl && typeof tl.close === "function")
+                tl.close();
+    }
+
+    function killAll(): void {
+        for (const w of CompositorService.windowSnapshot())
+            if (root.toplevels.includes(w.toplevel))
+                CompositorService.killWindow(w.address);
+    }
+
+    function menuEntries(): var {
+        return [
+            { text: Localization.t("dockMenu.open"), icon: addIcon, action: () => root.launch(false) },
+            { text: Localization.t("dockMenu.open_floating"), icon: windowIcon, action: () => root.launch(true) },
+            { isSep: true },
+            {
+                text: Localization.t(root.isPinned ? "dockMenu.unpin" : "dockMenu.pin"),
+                icon: pinIcon,
+                action: () => root.dockRoot.togglePinned(root.appId)
+            }
+        ].concat(root.isRunning ? [
+            { isSep: true },
+            { text: Localization.t("dockMenu.close"), icon: closeIcon, action: () => root.closeAll() },
+            { text: Localization.t("dockMenu.kill"), icon: killIcon, danger: true, action: () => root.killAll() }
+        ] : []);
+    }
+
+    Component { id: addIcon; MaterialIcon { name: "add"; iconSize: 16 } }
+    Component { id: windowIcon; MaterialIcon { name: "window"; iconSize: 16 } }
+    Component { id: pinIcon; MaterialIcon { name: "keep"; iconSize: 16 } }
+    Component { id: closeIcon; MaterialIcon { name: "close"; iconSize: 16 } }
+    Component { id: killIcon; MaterialIcon { name: "shutdown"; iconSize: 16 } }
+
+    readonly property bool hot: mouseArea.containsMouse
+        || (root.hoverPopup.menuOpen && root.hoverPopup.menuButton === root)
+
     property bool dragging: false
     property real dragStartPos: 0
 
@@ -121,7 +173,7 @@ Item {
         radius: width / 2
         color: root.isActive
             ? Colors.md3.secondary_container
-            : (mouseArea.containsMouse ? Qt.alpha(Colors.md3.on_surface, 0.08) : Qt.alpha(Colors.md3.secondary_container, 0))
+            : (root.hot ? Qt.alpha(Colors.md3.on_surface, 0.08) : Qt.alpha(Colors.md3.secondary_container, 0))
 
         Behavior on color {
             ColorAnimation { duration: 150 }
@@ -135,7 +187,7 @@ Item {
             asynchronous: true
             visible: !Config.tintIcons
 
-            scale: mouseArea.containsMouse && !root.dragging ? 1.12 : 1.0
+            scale: root.hot && !root.dragging ? 1.12 : 1.0
 
             Behavior on scale {
                 NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
@@ -240,20 +292,14 @@ Item {
                         root.focusToplevel(root.toplevels[root.lastFocusIndex]);
                     }
                 } else {
-                    if (root.desktopEntry) {
-                        root.desktopEntry.execute();
-                    } else {
-                        CompositorService.exec(root.appId);
-                    }
+                    root.launch(false);
                 }
             } else if (mouse.button === Qt.MiddleButton) {
-                if (root.desktopEntry) {
-                    root.desktopEntry.execute();
-                } else {
-                    CompositorService.exec(root.appId);
-                }
+                root.launch(false);
             } else if (mouse.button === Qt.RightButton) {
-                root.dockRoot.togglePinned(root.appId);
+                if (root.hoverPopup.menuOpen && root.hoverPopup.menuButton === root)
+                    return;
+                root.hoverPopup.openMenu(root, root.menuEntries());
             }
         }
 

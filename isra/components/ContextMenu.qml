@@ -34,6 +34,8 @@ Item {
     property var activeSubmenu: null
     property bool submenuOpen: false
 
+    property int anchorOrigin: -1
+
     property bool _originRight: false
     property bool _originBottom: false
     readonly property real cardOriginX: root._originRight ? 1 : 0
@@ -219,6 +221,8 @@ Item {
         }
 
         transformOrigin: {
+            if (root.anchorOrigin >= 0)
+                return root.anchorOrigin;
             if (root._originBottom && root._originRight)
                 return Item.BottomRight;
             if (root._originBottom)

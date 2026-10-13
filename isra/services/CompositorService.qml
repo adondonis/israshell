@@ -239,6 +239,13 @@ Singleton {
         backend?.exec(cmd);
     }
 
+    function execFloating(cmd: string): void {
+        if (backend?.execFloating)
+            backend.execFloating(cmd);
+        else
+            backend?.exec(cmd);
+    }
+
     function dpms(action: string, monitorName: string): void {
         backend?.dpms(action, monitorName);
     }
