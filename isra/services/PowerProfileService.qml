@@ -11,6 +11,8 @@ Singleton {
     property int profileIndex: 1
     readonly property string activeProfile: profiles[profileIndex]
 
+    readonly property bool liveCaptureAllowed: !GameModeService.active && activeProfile !== "power-saver"
+
     Process {
         id: getProc
         running: true

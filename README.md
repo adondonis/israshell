@@ -56,6 +56,8 @@ All handlers are called with `qs -c isra ipc call <target> <function> [args]`.
 | `launcher` | `toggle`, `openWith(prefix)` | `openWith ";"` clipboard, `openWith ":"` emoji picker |
 | `media` | `togglePlaying`, `play`, `pause`, `next`, `previous` | Controls the displayed player |
 | `screenshot` | `activate`, `region`, `window`, `screen`, `ocr`, `cts`, `record` | `activate` = smart screenshot, `record` toggles screen recording |
+| `overview` | `toggle`, `open`, `close` | Workspace and window overview |
+| `switcher` | `next`, `prev`, `commit` | Alt+Tab style window switcher, `commit` focuses the selected window |
 | `lockscreen` | `lock` | |
 | `gamemode` | `toggle` | |
 | `gameoverlay` | `toggle`, `crosshair(code)`, `unpin` | Crosshair, Performance, audio mixer, capture. `crosshair` takes a Valorant crosshair code, `unpin` unpins everything |

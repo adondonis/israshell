@@ -30,10 +30,12 @@ Singleton {
     Component { id: niriBackendComp; NiriBackend {} }
 
     signal panelFocusCleared()
+    signal windowEvent()
 
     Connections {
         target: root.backend
         function onPanelFocusCleared() { root.panelFocusCleared(); }
+        function onWindowEvent() { root.windowEvent(); }
     }
 
     function grabPanelFocus(windows: var): void {
@@ -167,6 +169,24 @@ Singleton {
         return out;
     }
 
+    function windowSnapshot(): var {
+        return backend?.snapshotWindows?.() ?? [];
+    }
+
+    function fetchWindowSnapshot(done: var): void {
+        if (backend?.snapshotAfter)
+            backend.snapshotAfter([], done);
+    }
+
+    function moveWindowAndSnapshot(address: string, wsId: int, special: string, done: var): void {
+        if (backend?.moveWindowSnapshot)
+            backend.moveWindowSnapshot(address, wsId, special, done);
+    }
+
+    function usableSize(screen: var): var {
+        return backend?.usableSize?.(screen) ?? null;
+    }
+
     function focusDirection(direction: string): void {
         backend?.focusDirection(direction);
     }
@@ -193,6 +213,14 @@ Singleton {
 
     function moveWindowToMonitor(address: string, monitorName: string, follow: bool): void {
         backend?.moveWindowToMonitor(address, monitorName, follow);
+    }
+
+    function toggleSpecial(name: string): void {
+        backend?.toggleSpecial?.(name);
+    }
+
+    function moveWindowToSpecial(address: string, name: string): void {
+        backend?.moveWindowToSpecial?.(address, name);
     }
 
     function closeWindow(address: string): void {

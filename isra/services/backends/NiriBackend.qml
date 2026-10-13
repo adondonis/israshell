@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import QtQuick
 import "Shapes.js" as Shapes
 
@@ -306,6 +307,98 @@ Scope {
         if (activeWindowAddr !== "") {
             _dispatchAction(["focus-window", "--id", activeWindowAddr.toString()]);
         }
+    }
+
+    function snapshotWindows(): var {
+        const gap = 16;
+        const outs = {};
+        for (const o of rawOutputs)
+            if (o.logical)
+                outs[o.name] = { name: o.name, x: o.logical.x, y: o.logical.y, w: o.logical.width, h: o.logical.height };
+        const wsById = {};
+        for (const w of rawWorkspaces)
+            wsById[w.id] = { idx: w.idx ?? -1, name: w.name ?? "", mon: outs[w.output] ?? null };
+
+        const cols = {}, pos = {};
+        for (const w of rawWindows) {
+            const p = w.layout?.pos_in_scrolling_layout;
+            if (w.is_floating || !p)
+                continue;
+            const ws = (cols[w.workspace_id] = cols[w.workspace_id] ?? {});
+            const c = (ws[p[0]] = ws[p[0]] ?? { x: null, w: 0, tiles: [] });
+            c.w = Math.max(c.w, w.layout.tile_size?.[0] ?? 0);
+            c.tiles.push(w);
+            const mon = wsById[w.workspace_id]?.mon;
+            if (w.layout.tile_pos_in_workspace_view && mon)
+                c.x = mon.x + w.layout.tile_pos_in_workspace_view[0];
+        }
+        for (const wsId in cols) {
+            const mon = wsById[wsId]?.mon ?? { x: 0, y: 0 };
+            const keys = Object.keys(cols[wsId]).map(Number).sort((a, b) => a - b);
+            const cs = keys.map(k => cols[wsId][k]);
+            for (let i = 1; i < cs.length; i++)
+                if (cs[i].x === null && cs[i - 1].x !== null)
+                    cs[i].x = cs[i - 1].x + cs[i - 1].w + gap;
+            for (let i = cs.length - 2; i >= 0; i--)
+                if (cs[i].x === null && cs[i + 1].x !== null)
+                    cs[i].x = cs[i + 1].x - cs[i].w - gap;
+            let x = mon.x + gap;
+            for (const c of cs) {
+                c.x = c.x ?? x;
+                x = c.x + c.w + gap;
+                c.tiles.sort((a, b) => a.layout.pos_in_scrolling_layout[1] - b.layout.pos_in_scrolling_layout[1]);
+                let y = mon.y + gap;
+                for (const t of c.tiles) {
+                    const ty = t.layout.tile_pos_in_workspace_view ? mon.y + t.layout.tile_pos_in_workspace_view[1] : y;
+                    pos[t.id] = [c.x, ty];
+                    y = ty + (t.layout.tile_size?.[1] ?? 0) + gap;
+                }
+            }
+        }
+
+        const free = (ToplevelManager.toplevels?.values ?? []).slice();
+        const ts = w => w.focus_timestamp ? w.focus_timestamp.secs * 1e9 + w.focus_timestamp.nanos : 0;
+        return rawWindows
+            .slice()
+            .sort((a, b) => (b.is_focused - a.is_focused) || (ts(b) - ts(a)))
+            .map(w => {
+                const ws = wsById[w.workspace_id];
+                const l = w.layout ?? {};
+                const off = l.window_offset_in_tile ?? [0, 0];
+                const vp = l.tile_pos_in_workspace_view;
+                const i = free.findIndex(t => t.appId === w.app_id && t.title === w.title);
+                return {
+                    address: w.id.toString(),
+                    appId: w.app_id ?? "",
+                    title: w.title || w.app_id || "",
+                    workspaceId: ws?.idx ?? -1,
+                    workspaceName: ws?.name ?? "",
+                    x: (pos[w.id]?.[0] ?? (ws?.mon?.x ?? 0) + (vp?.[0] ?? 0)) + off[0],
+                    y: (pos[w.id]?.[1] ?? (ws?.mon?.y ?? 0) + (vp?.[1] ?? 0)) + off[1],
+                    w: l.window_size?.[0] ?? 0,
+                    h: l.window_size?.[1] ?? 0,
+                    floating: w.is_floating ?? false,
+                    fullscreen: w.is_fullscreen ?? false,
+                    monitor: ws?.mon ?? null,
+                    outputName: ws?.mon?.name ?? "",
+                    toplevel: i >= 0 ? free.splice(i, 1)[0] : null
+                };
+            });
+    }
+
+    function snapshotAfter(dispatches: var, done: var): void {
+        done(snapshotWindows());
+    }
+
+    function moveWindowSnapshot(address: string, wsId: int, special: string, done: var): void {
+        if (wsId > 0)
+            _dispatchAction(["move-window-to-workspace", "--window-id", address, "--focus", "false", wsId.toString()]);
+        done(snapshotWindows());
+    }
+
+    function usableSize(screen: var): var {
+        const o = rawOutputs.find(o => o.name === screen?.name)?.logical;
+        return o ? { w: o.width, h: o.height } : null;
     }
 
     function _dispatchAction(args: var): void {

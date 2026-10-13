@@ -28,12 +28,16 @@ ShellRoot {
     Osd {}
 
     AppLauncher { id: appLauncher }
+    Overview { id: overview }
+    WindowSwitcher { id: windowSwitcher }
     Screenshot {}
     AiAssistant {}
 
     property var wallpaperPanels: ({})
     property var quickSettingsPanels: ({})
     readonly property var appLauncherController: appLauncher
+    readonly property var overviewController: overview
+    readonly property var globalPanelControllers: ({ launcher: appLauncher, overview: overview, switcher: windowSwitcher })
 
     property var currentOwningWindow: null
 
@@ -210,6 +214,8 @@ ShellRoot {
             Component { id: barMenuContentComponent; BarMenuContent {} }
             Component { id: trayMenuContentComponent; TrayMenuContent {} }
             Component { id: appLauncherContentComponent; AppLauncherContent {} }
+            Component { id: overviewContentComponent; OverviewContent {} }
+            Component { id: switcherContentComponent; WindowSwitcherContent {} }
 
             readonly property var panelContentComponents: ({
                     calendar: calendarContentComponent,
@@ -219,7 +225,9 @@ ShellRoot {
                     localsend: localSendContentComponent,
                     barMenu: barMenuContentComponent,
                     trayMenu: trayMenuContentComponent,
-                    launcher: appLauncherContentComponent
+                    launcher: appLauncherContentComponent,
+                    overview: overviewContentComponent,
+                    switcher: switcherContentComponent
                 })
 
             function isWidgetDisabled(id) {
@@ -647,7 +655,7 @@ ShellRoot {
                             sourceComponent: screenScope.panelContentComponents[type] ?? null
 
                             onLoaded: {
-                                item.controller = (panelSlotLoader.type === "launcher" ? rootShell.appLauncherController : screenScope.panelControllers[panelSlotLoader.type]) ?? null;
+                                item.controller = (rootShell.globalPanelControllers[panelSlotLoader.type] ?? screenScope.panelControllers[panelSlotLoader.type]) ?? null;
                             }
 
                             readonly property bool owned: panelSlotLoader.type === window.currentPanelType

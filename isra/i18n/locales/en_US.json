@@ -1232,5 +1232,6 @@
   "systemPage.use_the_playing_tracks_album_art": "Use the playing track's album art instead of the wallpaper",
   "widgetSettings.sunmoon_mode": "Display",
   "wolframWidget.query_failed": "Query failed",
-  "wolframWidget.thinking": "thinking..."
+  "wolframWidget.thinking": "thinking...",
+  "overview.special": "Special workspaces"
 }

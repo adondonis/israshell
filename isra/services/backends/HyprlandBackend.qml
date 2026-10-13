@@ -13,6 +13,9 @@ Scope {
 
     signal panelFocusCleared()
 
+    signal windowEvent()
+    readonly property var _windowEvents: ["openwindow", "closewindow", "movewindow", "movewindowv2", "windowtitle", "windowtitlev2", "changefloatingmode", "fullscreen", "moveworkspace", "workspacev2", "pin"]
+
     HyprlandFocusGrab {
         id: focusGrab
         onCleared: root.panelFocusCleared()
@@ -104,6 +107,8 @@ Scope {
         function onFocusedWorkspaceChanged(): void { _updateState(); }
 
         function onRawEvent(event: HyprlandEvent): void {
+            if (root._windowEvents.includes(event.name))
+                root.windowEvent();
             if (event.name === "activespecial") {
                 Hyprland.refreshMonitors();
             } else if (event.name === "configreloaded") {
@@ -137,6 +142,87 @@ Scope {
         }
     }
 
+    function snapshotWindows(clients: var): var {
+        const mons = {}, origins = {};
+        for (const m of Hyprland.monitors.values) {
+            const o = m.lastIpcObject;
+            if (o) {
+                const sc = o.scale || 1;
+                const r = o.reserved ?? [0, 0, 0, 0];
+                origins[o.id] = [o.x, o.y];
+                mons[o.id] = { x: o.x + r[0], y: o.y + r[1], w: o.width / sc - r[0] - r[2], h: o.height / sc - r[1] - r[3] };
+            }
+        }
+        const handles = {};
+        for (const t of Hyprland.toplevels.values)
+            if (t.lastIpcObject?.address)
+                handles[t.lastIpcObject.address] = t.wayland;
+
+        const onMonitor = (o, org) => !!org && !!o.at && Math.abs(o.at[0] - org[0]) <= 1 && Math.abs(o.at[1] - org[1]) <= 1;
+
+        const list = clients ?? Hyprland.toplevels.values.map(t => t.lastIpcObject).filter(o => !!o);
+        return list
+            .filter(o => o.address && o.mapped !== false && !o.hidden)
+            .sort((a, b) => (a.focusHistoryID ?? 0) - (b.focusHistoryID ?? 0))
+            .map(o => ({
+                address: o.address,
+                appId: o.class ?? "",
+                title: o.title || o.class || "",
+                workspaceId: o.workspace?.id ?? -1,
+                workspaceName: o.workspace?.name ?? "",
+                x: o.at?.[0] ?? 0,
+                y: o.at?.[1] ?? 0,
+                w: o.size?.[0] ?? 0,
+                h: o.size?.[1] ?? 0,
+                floating: o.floating ?? false,
+                fullscreen: (o.fullscreen ?? 0) > 0 && onMonitor(o, origins[o.monitor]),
+                monitor: mons[o.monitor] ?? null,
+                toplevel: handles[o.address] ?? null
+            }));
+    }
+
+    function snapshotAfter(dispatches: list<string>, done: var): void {
+        if (dispatches.length === 0 && snapProc.running)
+            return;
+        snapProc.done = done;
+        snapProc.command = ["hyprctl", "--batch", dispatches.map(c => `dispatch ${c}`).concat(["j/clients"]).join(" ; ")];
+        snapProc.running = false;
+        snapProc.running = true;
+    }
+
+    Process {
+        id: snapProc
+        property var done: null
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const cb = snapProc.done;
+                snapProc.done = null;
+                const i = text.indexOf("[");
+                if (!cb || i < 0)
+                    return;
+                try {
+                    cb(root.snapshotWindows(JSON.parse(text.slice(i))));
+                } catch (e) {
+                    console.warn("[HyprlandBackend] snapshotAfter parse failed:", e);
+                }
+            }
+        }
+    }
+
+    function moveWindowSnapshot(address: string, wsId: int, special: string, done: var): void {
+        const ws = wsId > 0 ? `${wsId}` : `"special:${special}"`;
+        snapshotAfter([`hl.dsp.window.move({ workspace = ${ws}, follow = false, window = "address:${address}" })`], done);
+    }
+
+    function usableSize(screen: var): var {
+        const o = Hyprland.monitorFor(screen)?.lastIpcObject;
+        if (!o)
+            return null;
+        const sc = o.scale || 1;
+        const r = o.reserved ?? [0, 0, 0, 0];
+        return { w: o.width / sc - r[0] - r[2], h: o.height / sc - r[1] - r[3] };
+    }
+
     function focusDirection(direction: string): void {
         _dispatch(`hl.dsp.focus({ direction = "${direction}" })`);
     }
@@ -165,6 +251,14 @@ Scope {
 
     function moveWindowToMonitor(address: string, monitorName: string, follow: bool): void {
         _dispatch(`hl.dsp.window.move({ monitor = "${monitorName}", follow = ${follow}, window = "address:${address}" })`);
+    }
+
+    function toggleSpecial(name: string): void {
+        _dispatch(`hl.dsp.workspace.toggle_special("${name}")`);
+    }
+
+    function moveWindowToSpecial(address: string, name: string): void {
+        _dispatch(`hl.dsp.window.move({ workspace = "special:${name}", follow = false, window = "address:${address}" })`);
     }
 
     function closeWindow(address: string): void {
